@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # Serviço para rodar o Ollama e servir o modelo de linguagem
+  ollama:
+    # Alterado de 'image' para 'build' para usar nosso Dockerfile customizado
+    build:
+      context: ./ollama
+    container_name: ollama_service
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+    restart: unless-stopped
+    # Adicionando uma verificação de saúde para garantir que o serviço esteja realmente pronto
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+
+
+  # Serviço da API Backend (FastAPI) para a lógica RAG
+  rag-api:
+    build:
+      context: ./api
+    container_name: rag_api_service
+    depends_on:
+      # Agora depende da saúde do serviço ollama, não apenas do seu início
+      ollama:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
+      - ./chroma_data:/app/chroma_db # Volume para persistir o banco de dados vetorial
+    environment:
+      - OLLAMA_HOST=http://ollama:11434 # Comunicação interna entre contêineres
+      - EMBEDDING_MODEL=nomic-embed-text # Modelo de embedding
+      - LLM_MODEL=llama3.2:1b # Modelo de chat
+    restart: unless-stopped
+
+  # Serviço do Frontend (Streamlit) para interação com o usuário
+  streamlit-app:
+    build:
+      context: ./frontend
+    container_name: streamlit_app_service
+    depends_on:
+      - rag-api
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./frontend:/app
+    environment:
+      - API_URL=http://rag-api:8000 # URL para o Streamlit se comunicar com o backend
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  chroma_data:
