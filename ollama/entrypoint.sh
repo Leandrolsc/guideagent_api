@@ -10,14 +10,21 @@ echo "Servidor Ollama iniciado. Aguardando ficar online..."
 # Aguarda um pouco para garantir que o servidor esteja pronto para receber comandos
 sleep 5
 
-echo "Puxando os modelos necessários (isso pode levar alguns minutos)..."
+echo "Puxando os modelos necessários a partir das variáveis de ambiente..."
 
-# Puxa os modelos. O Ollama os baixará se não existirem no volume.
-# Se você mudar os modelos no docker-compose.yml, precisará adicioná-los aqui também.
-ollama pull nomic-embed-text
-ollama pull llama3
+# Puxa os modelos definidos nas variáveis de ambiente.
+# Se a variável não for definida, ele não tentará baixar nada.
+if [ -n "$EMBEDDING_MODEL" ]; then
+  echo "Baixando modelo de embedding: $EMBEDDING_MODEL"
+  ollama pull "$EMBEDDING_MODEL"
+fi
+
+if [ -n "$LLM_MODEL" ]; then
+  echo "Baixando modelo de chat: $LLM_MODEL"
+  ollama pull "$LLM_MODEL"
+fi
 
 echo "Modelos prontos."
 
-# Aguarda o processo do servidor Ollama terminar (o que nunca acontecerá, mantendo o contêiner ativo)
+# Aguarda o processo do servidor Ollama terminar
 wait $pid

@@ -3,7 +3,6 @@ version: '3.8'
 services:
   # Serviço para rodar o Ollama e servir o modelo de linguagem
   ollama:
-    # Alterado de 'image' para 'build' para usar nosso Dockerfile customizado
     build:
       context: ./ollama
     container_name: ollama_service
@@ -12,13 +11,17 @@ services:
     volumes:
       - ./ollama_data:/root/.ollama
     restart: unless-stopped
-    # Adicionando uma verificação de saúde para garantir que o serviço esteja realmente pronto
+    # Passando as variáveis para o entrypoint do Ollama saber o que baixar.
+    # ESTA É A ÚNICA FONTE DE VERDADE AGORA.
+    environment:
+      - EMBEDDING_MODEL=nomic-embed-text
+      - LLM_MODEL=llama3.2:1b
     healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 5s
-      timeout: 10s
-      retries: 3
-
+      # A verificação agora depende do modelo de embedding que foi passado.
+      test: ["CMD", "ollama", "show", "nomic-embed-text"]
+      interval: 10s
+      timeout: 30s
+      retries: 30
 
   # Serviço da API Backend (FastAPI) para a lógica RAG
   rag-api:
@@ -26,21 +29,21 @@ services:
       context: ./api
     container_name: rag_api_service
     depends_on:
-      # Agora depende da saúde do serviço ollama, não apenas do seu início
       ollama:
         condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
       - ./api:/app
-      - ./chroma_data:/app/chroma_db # Volume para persistir o banco de dados vetorial
+      - ./chroma_data:/app/chroma_db
+    # A API lê as mesmas variáveis, garantindo consistência.
     environment:
-      - OLLAMA_HOST=http://ollama:11434 # Comunicação interna entre contêineres
-      - EMBEDDING_MODEL=nomic-embed-text # Modelo de embedding
-      - LLM_MODEL=llama3.2:1b # Modelo de chat
+      - OLLAMA_HOST=http://ollama:11434
+      - EMBEDDING_MODEL=nomic-embed-text
+      - LLM_MODEL=llama3.2:1b
     restart: unless-stopped
 
-  # Serviço do Frontend (Streamlit) para interação com o usuário
+  # Serviço do Frontend (Streamlit)
   streamlit-app:
     build:
       context: ./frontend
@@ -52,7 +55,7 @@ services:
     volumes:
       - ./frontend:/app
     environment:
-      - API_URL=http://rag-api:8000 # URL para o Streamlit se comunicar com o backend
+      - API_URL=http://rag-api:8000
     restart: unless-stopped
 
 volumes:
