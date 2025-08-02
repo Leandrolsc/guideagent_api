@@ -1,3 +1,5 @@
 __pycache__/
 ollama_data/
 chroma_data/
+temp_uploads/
+chroma_db/
