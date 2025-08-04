@@ -1,12 +1,11 @@
 import streamlit as st
 import requests
 import os
+import json
 
 # --- Configuration ---
-# Get the API URL from environment variables, with a fallback for local development
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 UPLOAD_ENDPOINT = f"{API_URL}/upload"
-ADD_TEXT_ENDPOINT = f"{API_URL}/add_text"
 CHAT_ENDPOINT = f"{API_URL}/chat"
 
 # --- Streamlit Page Configuration ---
@@ -16,77 +15,67 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🤖 Plataforma RAG - Converse com seus Dados")
-st.markdown("Faça upload de documentos (PDF, DOCX, MD) ou adicione texto e faça perguntas sobre o conteúdo.")
+st.title("🤖 Plataforma RAG com Metadados Estruturados")
+st.markdown("Faça upload de documentos com título, link e palavras-chave para melhorar a busca.")
 
 # --- Sidebar for Data Input ---
 with st.sidebar:
     st.header("Adicionar Conhecimento")
 
-    # Option to choose between file upload and text input
-    input_method = st.radio(
-        "Escolha o método de entrada:",
-        ("Upload de Arquivo", "Inserir Texto")
+    uploaded_file = st.file_uploader(
+        "Escolha um arquivo (PDF, DOCX, MD)",
+        type=['pdf', 'docx', 'md']
+    )
+    
+    # Novos campos para metadados estruturados
+    title_input = st.text_input("Nome / Título do Arquivo *", help="O título principal do documento.")
+    link_input = st.text_input("Link do Arquivo (Opcional)", help="URL para o documento original.")
+    keywords_input = st.text_input(
+        "Palavras-chave (separadas por ponto e vírgula)",
+        help="Ex: relatório; finanças; Q3; 2024"
     )
 
-    if input_method == "Upload de Arquivo":
-        uploaded_file = st.file_uploader(
-            "Escolha um arquivo (PDF, DOCX, MD)",
-            type=['pdf', 'docx', 'md']
-        )
-        if st.button("Processar Arquivo"):
-            if uploaded_file is not None:
-                with st.spinner('Processando e vetorizando o arquivo...'):
-                    files = {'file': (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                    try:
-                        response = requests.post(UPLOAD_ENDPOINT, files=files, timeout=300)
-                        if response.status_code == 200:
-                            st.success('Arquivo processado com sucesso!')
-                        else:
-                            st.error(f"Erro ao processar o arquivo: {response.text}")
-                    except requests.exceptions.RequestException as e:
-                        st.error(f"Erro de conexão com a API: {e}")
-            else:
-                st.warning("Por favor, faça o upload de um arquivo primeiro.")
+    if st.button("Processar Arquivo"):
+        if uploaded_file is not None and title_input:
+            with st.spinner('Processando arquivo e metadados...'):
+                files = {'file': (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                
+                # CORREÇÃO: Divide a string de palavras-chave usando ';'
+                keywords_list = [keyword.strip() for keyword in keywords_input.split(';') if keyword.strip()]
+                
+                # Prepara os dados do formulário com os novos campos
+                form_data = {
+                    'title': title_input,
+                    'link': link_input,
+                    'keywords': json.dumps(keywords_list)
+                }
 
-    elif input_method == "Inserir Texto":
-        raw_text = st.text_area("Cole o texto aqui:", height=200)
-        if st.button("Processar Texto"):
-            if raw_text:
-                with st.spinner('Processando e vetorizando o texto...'):
-                    try:
-                        payload = {"text": raw_text}
-                        response = requests.post(ADD_TEXT_ENDPOINT, json=payload, timeout=120)
-                        if response.status_code == 200:
-                            st.success('Texto processado com sucesso!')
-                        else:
-                            st.error(f"Erro ao processar o texto: {response.text}")
-                    except requests.exceptions.RequestException as e:
-                        st.error(f"Erro de conexão com a API: {e}")
-            else:
-                st.warning("Por favor, insira um texto para processar.")
+                try:
+                    response = requests.post(UPLOAD_ENDPOINT, files=files, data=form_data, timeout=300)
+                    if response.status_code == 200:
+                        st.success('Arquivo e metadados processados com sucesso!')
+                    else:
+                        st.error(f"Erro ao processar: {response.text}")
+                except requests.exceptions.RequestException as e:
+                    st.error(f"Erro de conexão com a API: {e}")
+        else:
+            st.warning("Por favor, faça o upload de um arquivo e preencha o título.")
 
 # --- Main Chat Interface ---
 st.header("Chat")
 
-# Initialize chat history in session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat messages from history on app rerun
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        st.markdown(message["content"], unsafe_allow_html=True)
 
-# Accept user input
 if prompt := st.chat_input("Qual é a sua pergunta?"):
-    # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
-    # Display user message in chat message container
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Display assistant response in chat message container
     with st.chat_message("assistant"):
         with st.spinner("Pensando..."):
             try:
@@ -95,9 +84,31 @@ if prompt := st.chat_input("Qual é a sua pergunta?"):
                 if response.status_code == 200:
                     response_data = response.json()
                     full_response = response_data.get("response", "Não foi possível obter uma resposta.")
+                    sources = response_data.get("sources", [])
+                    
                     st.markdown(full_response)
-                    # Add assistant response to chat history
-                    st.session_state.messages.append({"role": "assistant", "content": full_response})
+                    
+                    # Exibe as fontes de forma estruturada com links
+                    if sources:
+                        st.markdown("---")
+                        st.subheader("Fontes Consultadas:")
+                        sources_html = ""
+                        for source in sources:
+                            title = source.get('title', source.get('filename'))
+                            link = source.get('link')
+                            if link:
+                                sources_html += f"<li><a href='{link}' target='_blank'>{title}</a></li>"
+                            else:
+                                sources_html += f"<li>{title}</li>"
+                        st.markdown(f"<ul>{sources_html}</ul>", unsafe_allow_html=True)
+                    
+                    # Adiciona a resposta completa ao histórico
+                    response_with_sources = full_response
+                    if sources:
+                        response_with_sources += "\n\n---\n**Fontes:**"
+                        for source in sources:
+                             response_with_sources += f"\n- {source.get('title')}"
+                    st.session_state.messages.append({"role": "assistant", "content": response_with_sources})
                 else:
                     st.error(f"Erro na API: {response.text}")
             except requests.exceptions.RequestException as e:
