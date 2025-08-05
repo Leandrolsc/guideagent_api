@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # Serviço para rodar o Ollama e servir o modelo de linguagem
   ollama:
     build:
       context: ./ollama
@@ -11,19 +10,15 @@ services:
     volumes:
       - ./ollama_data:/root/.ollama
     restart: unless-stopped
-    # Passando as variáveis para o entrypoint do Ollama saber o que baixar.
-    # ESTA É A ÚNICA FONTE DE VERDADE AGORA.
     environment:
       - EMBEDDING_MODEL=nomic-embed-text
       - LLM_MODEL=llama3.2:1b
     healthcheck:
-      # A verificação agora depende do modelo de embedding que foi passado.
       test: ["CMD", "ollama", "show", "nomic-embed-text"]
       interval: 10s
       timeout: 30s
       retries: 30
 
-  # Serviço da API Backend (FastAPI) para a lógica RAG
   rag-api:
     build:
       context: ./api
@@ -36,14 +31,12 @@ services:
     volumes:
       - ./api:/app
       - ./chroma_data:/app/chroma_db
-    # A API lê as mesmas variáveis, garantindo consistência.
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - EMBEDDING_MODEL=nomic-embed-text
       - LLM_MODEL=llama3.2:1b
     restart: unless-stopped
 
-  # Serviço do Frontend (Streamlit)
   streamlit-app:
     build:
       context: ./frontend
