@@ -5,7 +5,6 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
-# LangChain imports
 from langchain_community.vectorstores import Chroma
 from langchain_community.chat_models import ChatOllama
 from langchain_community.embeddings import OllamaEmbeddings
@@ -15,21 +14,18 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 
-# --- Configuration ---
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:1b")
 CHROMA_PERSIST_DIR = "./chroma_db"
 TEMP_UPLOAD_DIR = "./temp_uploads"
 
-# --- FastAPI App Initialization ---
 app = FastAPI(
     title="RAG Platform API with Structured Metadata",
     description="API for vectorizing documents with structured metadata and chatting with them.",
     version="1.2.1"
 )
 
-# --- Data Models for API ---
 class QueryRequest(BaseModel):
     text: str
 
