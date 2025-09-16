@@ -125,7 +125,3 @@ guideagent_api/
 ├── docker-compose.yml
 └── readme.md
 ```
-
-## Licença
-
-Este projeto está sob a licença ......
