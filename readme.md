@@ -1,3 +1,5 @@
+:construction: Em Construção :construction:
+
 # Plataforma RAG - Converse com seus Dados
 
 Este projeto é uma plataforma de Recuperação Aumentada por Geração (RAG) que permite ao usuário fazer upload de documentos (PDF, DOCX, MD) ou inserir textos, processá-los e conversar com seus dados utilizando modelos de linguagem via Ollama.
